@@ -10,31 +10,6 @@
 
 package org.eclipse.jgit.internal.storage.file;
 
-import static java.nio.charset.StandardCharsets.UTF_8;
-import static org.eclipse.jgit.internal.storage.pack.PackExt.INDEX;
-import static org.eclipse.jgit.internal.storage.pack.PackExt.PACK;
-
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.nio.file.AtomicMoveNotSupportedException;
-import java.nio.file.Files;
-import java.nio.file.StandardCopyOption;
-import java.text.MessageFormat;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
-
 import org.eclipse.jgit.errors.CorruptObjectException;
 import org.eclipse.jgit.errors.PackInvalidException;
 import org.eclipse.jgit.errors.PackMismatchException;
@@ -56,6 +31,33 @@ import org.eclipse.jgit.util.FS;
 import org.eclipse.jgit.util.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
+import java.text.MessageFormat;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.eclipse.jgit.internal.storage.pack.PackExt.INDEX;
+import static org.eclipse.jgit.internal.storage.pack.PackExt.PACK;
 
 /**
  * Traditional file system based {@link org.eclipse.jgit.lib.ObjectDatabase}.
@@ -754,9 +756,29 @@ public class ObjectDirectory extends FileObjectDatabase {
 	}
 
 	@Override
-	Set<ObjectId> getShallowCommits() throws IOException {
-		if (shallowFile == null || !shallowFile.isFile())
-			return Collections.emptySet();
+	public void setShallowCommits(Set<ObjectId> shallowCommitsIds) throws IOException {
+	    if (null == shallowFile) {
+            throw new IOException("null shallowFile ");
+		}
+		this.shallowCommitsIds = shallowCommitsIds;
+	    if (shallowCommitsIds.isEmpty() && shallowFile.exists()) {
+	        FileUtils.delete(shallowFile);
+		}
+	    else {
+			try (BufferedWriter writer = write(shallowFile)) {
+				for (ObjectId objectId : shallowCommitsIds) {
+					String id = objectId.getName();
+					writer.write(id + "\n");
+				}
+			}
+		}
+	}
+
+	@Override
+	public Set<ObjectId> getShallowCommits() throws IOException {
+		if (shallowFile == null || !shallowFile.isFile()) {
+			return new HashSet<>();
+		}
 
 		if (shallowFileSnapshot == null
 				|| shallowFileSnapshot.isModified(shallowFile)) {
@@ -1002,6 +1024,9 @@ public class ObjectDirectory extends FileObjectDatabase {
 		return l.toArray(new AlternateHandle[0]);
 	}
 
+	private static BufferedWriter write(File f) throws IOException{
+	    return Files.newBufferedWriter(f.toPath(), UTF_8, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE);
+	}
 	private static BufferedReader open(File f)
 			throws IOException, FileNotFoundException {
 		return Files.newBufferedReader(f.toPath(), UTF_8);

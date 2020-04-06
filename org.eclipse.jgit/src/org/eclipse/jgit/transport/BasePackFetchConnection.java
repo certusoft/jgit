@@ -24,6 +24,7 @@ import java.util.Set;
 import org.eclipse.jgit.errors.PackProtocolException;
 import org.eclipse.jgit.errors.TransportException;
 import org.eclipse.jgit.internal.JGitText;
+import org.eclipse.jgit.internal.storage.file.ObjectDirectory;
 import org.eclipse.jgit.internal.storage.file.PackLock;
 import org.eclipse.jgit.lib.AnyObjectId;
 import org.eclipse.jgit.lib.Config;
@@ -189,6 +190,9 @@ public abstract class BasePackFetchConnection extends BasePackConnection
 
 	private MultiAck multiAck = MultiAck.OFF;
 
+	private int depth = -1;
+	private boolean expectingShallow = false;
+
 	private boolean thinPack;
 
 	private boolean sideband;
@@ -238,6 +242,7 @@ public abstract class BasePackFetchConnection extends BasePackConnection
 		}
 
 		includeTags = transport.getTagOpt() != TagOpt.NO_TAGS;
+		depth = transport.getDepth();
 		thinPack = transport.isFetchThin();
 		filterSpec = transport.getFilterSpec();
 
@@ -459,6 +464,8 @@ public abstract class BasePackFetchConnection extends BasePackConnection
 	private boolean sendWants(Collection<Ref> want) throws IOException {
 		final PacketLineOut p = statelessRPC ? pckState : pckOut;
 		boolean first = true;
+		final ObjectDirectory objectDatabase = (ObjectDirectory) this.local.getObjectDatabase();
+		final Set<ObjectId> shallowCommits = objectDatabase.getShallowCommits();
 		for (Ref r : want) {
 			ObjectId objectId = r.getObjectId();
 			if (objectId == null) {
@@ -485,7 +492,43 @@ public abstract class BasePackFetchConnection extends BasePackConnection
 			}
 			line.append('\n');
 			p.writeString(line.toString());
+			if (-1 < depth) {
+				shallowCommits.add(objectId);
+			}
 		}
+
+		// Add 'shallow' list too
+		{
+			if (!shallowCommits.isEmpty()) {
+				// Subtract 1 from the depth as we have 1 level here at least.
+			    depth--;
+				objectDatabase.setShallowCommits(shallowCommits);
+				for (ObjectId shallowId : shallowCommits) {
+					String id = shallowId.getName();
+					p.writeString("shallow " + id + "\n");
+				}
+			}
+		}
+
+		// If shallow is already being done, we don't need to deepen
+		boolean sendWantsDeepen = true;
+		if (-1 < depth && sendWantsDeepen) {
+		    if (0 < depth) {
+				// Setting the depth greater than 0 doesn't work with this current codebase.
+				// If that is needed it will need to be figured out.
+				throw new IllegalArgumentException("Depth > 1 not currently supported.");
+			}
+			expectingShallow = 0 < depth;
+			final StringBuilder builder = new StringBuilder(46);
+			builder.append("deepen "); //$NON-NLS-1$
+			builder.append(depth);
+			builder.append('\n');
+			p.writeString(builder.toString());
+		}
+
+		//if (expectingShallow) {
+		//	p.end();
+		//}
 		if (first) {
 			return false;
 		}
@@ -556,6 +599,9 @@ public abstract class BasePackFetchConnection extends BasePackConnection
 		}
 
 		negotiateBegin();
+
+		handleShallowLines();
+
 		SEND_HAVES: for (;;) {
 			final RevCommit c = walk.next();
 			if (c == null) {
@@ -708,6 +754,51 @@ public abstract class BasePackFetchConnection extends BasePackConnection
 				throw new CancelledException();
 			}
 		}
+	}
+
+	private void handleShallowLines() throws IOException {
+		if (!expectingShallow) {
+			return;
+		}
+		final ObjectDirectory objectDatabase = (ObjectDirectory) this.local.getObjectDatabase();
+
+		java.util.Set<ObjectId> shallows = objectDatabase.getShallowCommits();
+		while(true) {
+			String line = pckIn.readString();
+			if (null == line || line.isEmpty()) {
+				break;
+			}
+			if (line.startsWith("shallow ") || line.startsWith("unshallow ")) {
+				String [] split = line.split(" ", 2);
+				String pkey = split[0];
+				ObjectId objectId = ObjectId.fromString(split[1]);
+				if ("shallow".equalsIgnoreCase(pkey)) {
+					shallows.add(objectId);
+				}
+				else {
+					shallows.remove(objectId);
+				}
+
+				// Only do 1 line?
+				// Get "Starting read stage without written request data pending is not supported" exception otherwise.
+                //break;
+			}
+			else {
+				throw new IOException("Unexpected line when looking for shallow/unshallow: " + line);
+			}
+		}
+
+		objectDatabase.setShallowCommits(shallows);
+
+		// Shut off the deepening
+		/*
+		final StringBuilder builder = new StringBuilder(46);
+		builder.append("deepen "); //$NON-NLS-1$
+		builder.append(0);
+		builder.append('\n');
+		pckOut.writeString(builder.toString());
+		pckOut.end();
+		 */
 	}
 
 	private void negotiateBegin() throws IOException {

@@ -733,6 +733,9 @@ public abstract class Transport implements AutoCloseable {
 	 */
 	private TagOpt tagopt = TagOpt.NO_TAGS;
 
+	/** Fetch this depth of commits **/
+	private int depth = -1;
+
 	/** Should fetch request thin-pack if remote repository can produce it. */
 	private boolean fetchThin = DEFAULT_FETCH_THIN;
 
@@ -857,6 +860,27 @@ public abstract class Transport implements AutoCloseable {
 	 */
 	public void setTagOpt(TagOpt option) {
 		tagopt = option != null ? option : TagOpt.AUTO_FOLLOW;
+	}
+
+	/**
+	 * Get the set depth.
+	 * @return The set depth
+	 */
+	public int getDepth() {
+		return depth;
+	}
+
+	/**
+	 * Set the depth
+	 * @param depth The depth.
+	 */
+	public void setDepth(int depth) {
+		if (0 > depth) {
+			this.depth = -1;
+		}
+		else {
+			this.depth = depth;
+		}
 	}
 
 	/**
