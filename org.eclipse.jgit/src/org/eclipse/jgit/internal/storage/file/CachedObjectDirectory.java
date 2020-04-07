@@ -117,6 +117,11 @@ class CachedObjectDirectory extends FileObjectDatabase {
 	}
 
 	@Override
+	void setShallowCommits(Set<ObjectId> shallowCommits) throws IOException {
+	    wrapped.setShallowCommits(shallowCommits);
+	}
+
+	@Override
 	Set<ObjectId> getShallowCommits() throws IOException {
 		return wrapped.getShallowCommits();
 	}

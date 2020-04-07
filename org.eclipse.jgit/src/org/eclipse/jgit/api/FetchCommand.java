@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010, Chris Aniszczyk <caniszczyk@gmail.com> and others
+ * Copyright (C) 2010-2020, Chris Aniszczyk <caniszczyk@gmail.com> and others
  *
  * This program and the accompanying materials are made available under the
  * terms of the Eclipse Distribution License v. 1.0 which is available at
@@ -69,6 +69,8 @@ public class FetchCommand extends TransportCommand<FetchCommand, FetchResult> {
 	private TagOpt tagOption;
 
 	private FetchRecurseSubmodulesMode submoduleRecurseMode = null;
+
+	private int depth = -1;
 
 	private Callback callback;
 
@@ -206,6 +208,7 @@ public class FetchCommand extends TransportCommand<FetchCommand, FetchResult> {
 			transport.setDryRun(dryRun);
 			if (tagOption != null)
 				transport.setTagOpt(tagOption);
+			transport.setDepth(getEffectiveDepth());
 			transport.setFetchThin(thin);
 			configure(transport);
 			FetchResult result = transport.fetch(monitor,
@@ -447,6 +450,40 @@ public class FetchCommand extends TransportCommand<FetchCommand, FetchResult> {
 	public FetchCommand setDryRun(boolean dryRun) {
 		checkCallable();
 		this.dryRun = dryRun;
+		return this;
+	}
+
+
+	/**
+	 * Get the effective depth value.
+	 *
+	 * @return The effective depth
+	 */
+	public int getEffectiveDepth() {
+		if (0 > depth) {
+			return -1;
+		}
+		return depth;
+	}
+
+	/**
+	 * Get the set depth value.
+	 * @return The set depth
+	 */
+	public int getDepth() {
+		return depth;
+	}
+
+	/**
+	 * Sets the fetch depth.
+	 *
+	 * @param depth
+	 *            Depth to fetch.
+	 * @return {@code this}
+	 */
+	public FetchCommand setDepth(int depth) {
+		checkCallable();
+		this.depth = depth;
 		return this;
 	}
 
