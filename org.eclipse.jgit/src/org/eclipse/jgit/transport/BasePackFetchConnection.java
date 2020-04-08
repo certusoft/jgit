@@ -516,7 +516,7 @@ public abstract class BasePackFetchConnection extends BasePackConnection
 		    if (0 < depth) {
 				// Setting the depth greater than 0 doesn't work with this current codebase.
 				// If that is needed it will need to be figured out.
-				throw new IllegalArgumentException("Depth > 1 not currently supported.");
+				throw new IllegalArgumentException("Depth > 0 not currently supported.");
 			}
 			expectingShallow = 0 < depth;
 			final StringBuilder builder = new StringBuilder(46);
@@ -526,9 +526,6 @@ public abstract class BasePackFetchConnection extends BasePackConnection
 			p.writeString(builder.toString());
 		}
 
-		//if (expectingShallow) {
-		//	p.end();
-		//}
 		if (first) {
 			return false;
 		}
@@ -778,10 +775,6 @@ public abstract class BasePackFetchConnection extends BasePackConnection
 				else {
 					shallows.remove(objectId);
 				}
-
-				// Only do 1 line?
-				// Get "Starting read stage without written request data pending is not supported" exception otherwise.
-                //break;
 			}
 			else {
 				throw new IOException("Unexpected line when looking for shallow/unshallow: " + line);
@@ -790,7 +783,8 @@ public abstract class BasePackFetchConnection extends BasePackConnection
 
 		objectDatabase.setShallowCommits(shallows);
 
-		// Shut off the deepening
+		// Shut off the deepening?  Using depth > 0 causes this negotiation to fail.  Does the depth need
+		// to be set to 0 to make the server and client agree it is time to ACK/NACK?
 		/*
 		final StringBuilder builder = new StringBuilder(46);
 		builder.append("deepen "); //$NON-NLS-1$
