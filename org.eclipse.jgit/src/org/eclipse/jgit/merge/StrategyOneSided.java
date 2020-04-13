@@ -64,10 +64,13 @@ public class StrategyOneSided extends MergeStrategy {
 	/** {@inheritDoc} */
 	@Override
 	public Merger newMerger(ObjectInserter inserter, Config config) {
-		return new OneSide(inserter, treeIndex);
+		return new OneSide(inserter, config, treeIndex);
 	}
 
-	static class OneSide extends Merger {
+	/**
+	 * Note: Extends ResolveMerger due to https://bugs.eclipse.org/bugs/show_bug.cgi?id=501111
+	 */
+	static class OneSide extends ResolveMerger {
 		private final int treeIndex;
 
 		protected OneSide(Repository local, int index) {
@@ -75,8 +78,8 @@ public class StrategyOneSided extends MergeStrategy {
 			treeIndex = index;
 		}
 
-		protected OneSide(ObjectInserter inserter, int index) {
-			super(inserter);
+		protected OneSide(ObjectInserter inserter, Config config, int index) {
+			super(inserter, config);
 			treeIndex = index;
 		}
 
